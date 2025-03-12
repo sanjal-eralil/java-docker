@@ -1,0 +1,97 @@
+name: Test Docker Build and Push Configuration
+
+on:
+  # Run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  test-configuration:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Test Docker Hub Credentials
+        run: |
+          echo "Testing Docker Hub credentials..."
+          if [ -z "${{ secrets.DOCKER_HUB_USERNAME }}" ]; then
+            echo "::error::DOCKER_HUB_USERNAME secret is not set!"
+            exit 1
+          else
+            echo "✓ DOCKER_HUB_USERNAME is set"
+          fi
+          
+          if [ -z "${{ secrets.DOCKER_HUB_TOKEN }}" ]; then
+            echo "::error::DOCKER_HUB_TOKEN secret is not set!"
+            exit 1
+          else
+            echo "✓ DOCKER_HUB_TOKEN is set"
+          fi
+      
+      - name: Validate Docker Login
+        run: |
+          echo "Attempting Docker Hub login..."
+          echo "${{ secrets.DOCKER_HUB_TOKEN }}" | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
+          if [ $? -eq 0 ]; then
+            echo "✓ Successfully logged in to Docker Hub"
+          else
+            echo "::error::Failed to log in to Docker Hub. Please check your credentials."
+            exit 1
+          fi
+      
+      - name: Check Java and Maven
+        run: |
+          echo "Checking Java installation..."
+          java -version || echo "Java is not installed. Will be installed by the actual workflow."
+          
+          echo "Checking Maven installation..."
+          mvn -version || echo "Maven is not installed. Will be installed by the actual workflow."
+          
+          echo "Checking for pom.xml..."
+          if [ -f "pom.xml" ]; then
+            echo "✓ pom.xml found"
+          else
+            echo "::warning::pom.xml not found. The build step will fail without it."
+          fi
+      
+      - name: Check Dockerfile
+        run: |
+          echo "Checking for Dockerfile..."
+          if [ -f "Dockerfile" ]; then
+            echo "✓ Dockerfile found"
+            echo "Dockerfile contents:"
+            cat Dockerfile
+          else
+            echo "::error::Dockerfile not found. Please create a Dockerfile in the root directory."
+            exit 1
+          fi
+      
+      - name: Verify target directory
+        run: |
+          echo "Checking target directory and JAR file..."
+          mkdir -p target
+          touch target/java-docker-0.0.1-SNAPSHOT.jar
+          echo "Note: Created a dummy JAR file for testing. The actual workflow will build the real JAR."
+          ls -la target
+      
+      - name: Test Docker Build (without push)
+        run: |
+          echo "Testing Docker build..."
+          docker build -t test-image .
+          if [ $? -eq 0 ]; then
+            echo "✓ Docker build successful"
+            docker images | grep test-image
+          else
+            echo "::error::Docker build failed. Please check your Dockerfile."
+            exit 1
+          fi
+      
+      - name: Configuration Summary
+        run: |
+          echo "=== Configuration Test Summary ==="
+          echo "✓ Repository access: OK"
+          echo "✓ Docker Hub credentials: Validated"
+          echo "✓ Docker build: OK"
+          echo "The full workflow should work correctly if all checks passed."
+          echo "You can now enable the main docker-build-push.yml workflow."
